@@ -1,6 +1,7 @@
 import requests as req
 import json
 import os
+import multiprocessing
 
 #OPEN BROWSER AND LOGIN TO DISCORD
 
@@ -38,35 +39,46 @@ def message_fetch(auth, channel_id):
         js += json.loads(r.text) #Concat to js
     return js
 
+#Parallel downloading
+def para_img_get(data):
+    # grep right data with key
+    preurl = data['attachments']
+    # not always there are attachmens
+    if len(preurl) > 0:
+        # Output is two dimensinal for some reason 
+        urlToDownload = preurl [0]['url']
+        # File name assemble
+        suffix = os.path.splitext(urlToDownload)[1]
+        nameForFile = urlToDownload.split("/")[-2]
+        ComplexPathForFile = f'{channel_name}/{nameForFile+suffix}'
+        # and request and save file
+        if not os.path.isfile(ComplexPathForFile):
+            r = req.get(urlToDownload)
+            with open (ComplexPathForFile, 'wb') as fi:
+                fi.write(r.content)
+            print(ComplexPathForFile)
 
-
-def download_images(folder_name):
+#Main function of download
+def download_images():
     #Create folder for download
-    if not os.path.isdir(folder_name):
-        os.mkdir(folder_name)
+    if not os.path.isdir(channel_name):
+        os.mkdir(channel_name)
 
     #Open and load fetched chat
     f = open('mess.json')
     data = json.load(f)
-    #iter
-    for i in data:
-        # grep right data with key
-        preurl = i['attachments']
-        # not always there are attachmens
-        if len(preurl) > 0:
-            # Output is two dimensinal for some reason 
-            urlToDownload = preurl [0]['url']
-            # File name assemble
-            suffix = os.path.splitext(urlToDownload)[1]
-            nameForFile = urlToDownload.split("/")[-2]
-            # and request and save file
-            r = req.get(urlToDownload)
-            with open (f'{folder_name}/{nameForFile+suffix}', 'wb') as fi:
-                fi.write(r.content)
+    
+    #serial iter is slow so I make it parallel
+    pool_obj = multiprocessing.Pool()
+
+    pool_obj.map(para_img_get,data)
     f.close()
 
 
+#call of message fetch
 jso = message_fetch(authorization, channel_id)
+#save to json
 with open('mess.json', 'w') as f:
     json.dump(jso, f)
-download_images(channel_name)
+#and download    
+download_images()
